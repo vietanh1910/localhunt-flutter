@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../models/campaign.dart';
 import '../services/api_service.dart';
@@ -13,13 +14,70 @@ class CampaignListScreen extends StatefulWidget {
 
 class _CampaignListScreenState extends State<CampaignListScreen> {
   List<Campaign> campaigns = [];
+  List<CampaignWithDistance> campaignsWithDistance = [];
   bool isLoading = true;
+  bool isLoadingLocation = true;
   String? errorMessage;
+  Position? currentPosition;
 
   @override
   void initState() {
     super.initState();
-    _loadCampaigns();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    await Future.wait([
+      _getCurrentLocation(),
+      _loadCampaigns(),
+    ]);
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      setState(() {
+        isLoadingLocation = true;
+      });
+
+      // Check location permissions
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() {
+            isLoadingLocation = false;
+          });
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() {
+          isLoadingLocation = false;
+        });
+        return;
+      }
+
+      // Get current position
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        currentPosition = position;
+        isLoadingLocation = false;
+      });
+
+      // Recalculate distances if campaigns are already loaded
+      if (campaigns.isNotEmpty) {
+        _calculateDistancesAndSort();
+      }
+    } catch (e) {
+      print('Error getting location: $e');
+      setState(() {
+        isLoadingLocation = false;
+      });
+    }
   }
 
   Future<void> _loadCampaigns() async {
@@ -35,12 +93,50 @@ class _CampaignListScreenState extends State<CampaignListScreen> {
         campaigns = campaignList;
         isLoading = false;
       });
+
+      // Calculate distances if location is already available
+      if (currentPosition != null) {
+        _calculateDistancesAndSort();
+      }
     } catch (e) {
       setState(() {
         errorMessage = 'Cannot load campaign lists: $e';
         isLoading = false;
       });
     }
+  }
+
+  void _calculateDistancesAndSort() {
+    if (currentPosition == null || campaigns.isEmpty) return;
+
+    List<CampaignWithDistance> tempList = campaigns.map((campaign) {
+      double distance = 0;
+      
+      if (campaign.latitude != 0 && campaign.longitude != 0) {
+        distance = Geolocator.distanceBetween(
+          currentPosition!.latitude,
+          currentPosition!.longitude,
+          campaign.latitude,
+          campaign.longitude,
+        );
+      }
+
+      return CampaignWithDistance(
+        campaign: campaign,
+        distance: distance,
+      );
+    }).toList();
+
+    // Sort by distance (nearest first)
+    tempList.sort((a, b) => a.distance.compareTo(b.distance));
+
+    setState(() {
+      campaignsWithDistance = tempList;
+    });
+  }
+
+  Future<void> _refresh() async {
+    await _initializeData();
   }
 
   @override
@@ -50,9 +146,17 @@ class _CampaignListScreenState extends State<CampaignListScreen> {
         title: const Text('Check-in Campaign'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
+        actions: [
+          if (currentPosition != null)
+            IconButton(
+              icon: const Icon(Icons.my_location),
+              onPressed: _getCurrentLocation,
+              tooltip: 'Refresh location',
+            ),
+        ],
       ),
       body: RefreshIndicator(
-        onRefresh: _loadCampaigns,
+        onRefresh: _refresh,
         child: _buildBody(),
       ),
     );
@@ -61,7 +165,14 @@ class _CampaignListScreenState extends State<CampaignListScreen> {
   Widget _buildBody() {
     if (isLoading) {
       return const Center(
-        child: CircularProgressIndicator(),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Loading campaigns...'),
+          ],
+        ),
       );
     }
 
@@ -103,17 +214,94 @@ class _CampaignListScreenState extends State<CampaignListScreen> {
       );
     }
 
+    // Show location loading status
+    if (isLoadingLocation && currentPosition == null) {
+      return Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            color: Colors.orange[100],
+            child: const Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 8),
+                Text('Getting your location to show nearest campaigns...'),
+              ],
+            ),
+          ),
+          Expanded(child: _buildCampaignList()),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        // Location status bar
+        if (currentPosition == null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            color: Colors.red[100],
+            child: const Row(
+              children: [
+                Icon(Icons.location_off, size: 16, color: Colors.red),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Location not available. Campaigns are shown in default order.',
+                    style: TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (currentPosition != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            color: Colors.green[100],
+            child: const Row(
+              children: [
+                Icon(Icons.location_on, size: 16, color: Colors.green),
+                SizedBox(width: 8),
+                Text(
+                  'Campaigns sorted by distance (nearest first)',
+                  style: TextStyle(color: Colors.green, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        Expanded(child: _buildCampaignList()),
+      ],
+    );
+  }
+
+  Widget _buildCampaignList() {
+    // Use campaigns with distance if available, otherwise use original list
+    final displayList = currentPosition != null && campaignsWithDistance.isNotEmpty
+        ? campaignsWithDistance
+        : campaigns.map((c) => CampaignWithDistance(campaign: c, distance: 0)).toList();
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: campaigns.length,
+      itemCount: displayList.length,
       itemBuilder: (context, index) {
-        final campaign = campaigns[index];
-        return _buildCampaignCard(campaign);
+        final item = displayList[index];
+        return _buildCampaignCard(item);
       },
     );
   }
 
-  Widget _buildCampaignCard(Campaign campaign) {
+  Widget _buildCampaignCard(CampaignWithDistance campaignWithDistance) {
+    final campaign = campaignWithDistance.campaign;
+    final distance = campaignWithDistance.distance;
+    final bool hasDistance = currentPosition != null && distance > 0;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
@@ -183,6 +371,27 @@ class _CampaignListScreenState extends State<CampaignListScreen> {
                   ),
                 ],
               ),
+              if (hasDistance) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.near_me,
+                      size: 16,
+                      color: Colors.blue[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatDistance(distance),
+                      style: TextStyle(
+                        color: Colors.blue[600],
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 8),
               Text(
                 campaign.description,
@@ -217,4 +426,23 @@ class _CampaignListScreenState extends State<CampaignListScreen> {
       ),
     );
   }
+
+  String _formatDistance(double distanceInMeters) {
+    if (distanceInMeters < 1000) {
+      return '${distanceInMeters.toInt()}m away';
+    } else {
+      return '${(distanceInMeters / 1000).toStringAsFixed(1)}km away';
+    }
+  }
+}
+
+// Helper class to combine campaign with distance
+class CampaignWithDistance {
+  final Campaign campaign;
+  final double distance;
+
+  CampaignWithDistance({
+    required this.campaign,
+    required this.distance,
+  });
 }
