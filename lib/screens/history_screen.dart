@@ -1,6 +1,7 @@
 // file: screens/history_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../models/redemption_history_item.dart';
 
 class HistoryScreen extends StatelessWidget {
@@ -10,13 +11,15 @@ class HistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sortedHistory = List<RedemptionHistoryItem>.from(history)..sort((a, b) => b.redemptionDate.compareTo(a.redemptionDate));
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lịch Sử Đổi Thưởng'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
-      body: history.isEmpty
+      body: sortedHistory.isEmpty
           ? const Center(
         child: Text(
           'Bạn chưa đổi phần thưởng nào.',
@@ -25,12 +28,9 @@ class HistoryScreen extends StatelessWidget {
       )
           : ListView.builder(
         padding: const EdgeInsets.all(16.0),
-        itemCount: history.length,
+        itemCount: sortedHistory.length,
         itemBuilder: (context, index) {
-          // Sắp xếp để hiển thị giao dịch mới nhất lên đầu
-          final item = history[history.length - 1 - index];
-          final hour = item.redemptionDate.hour.toString().padLeft(2, '0');
-          final minute = item.redemptionDate.minute.toString().padLeft(2, '0');
+          final item = sortedHistory[index];
 
           return Card(
             margin: const EdgeInsets.only(bottom: 12.0),
@@ -49,7 +49,7 @@ class HistoryScreen extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               subtitle: Text(
-                'Ngày đổi: $hour:$minute ${item.redemptionDate.day}/${item.redemptionDate.month}/${item.redemptionDate.year}',
+                'Ngày đổi: ${DateFormat('HH:mm, dd/MM/yyyy').format(item.redemptionDate)}',
               ),
               trailing: Chip(
                 label: Text(

@@ -1,23 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-class QrScanScreen extends StatelessWidget {
-  const QrScanScreen({super.key});
+class QRScanScreen extends StatelessWidget {
+  const QRScanScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scan QR Code'),
-        backgroundColor: Colors.blue,
-      ),
+      appBar: AppBar(title: const Text("Quét mã QR")),
       body: MobileScanner(
-        onDetect: (BarcodeCapture capture) {
+        onDetect: (capture) {
           final List<Barcode> barcodes = capture.barcodes;
-          if (barcodes.isNotEmpty) {
-            final String? code = barcodes.first.rawValue;
+          for (final barcode in barcodes) {
+            final String? code = barcode.rawValue;
             if (code != null) {
-              Navigator.pop(context, code); // trả kết quả về màn trước
+              Navigator.pop(context, code); // trả kết quả về
+              break;
             }
           }
         },

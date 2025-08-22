@@ -1,12 +1,21 @@
 // file: screens/main_screen.dart
+
 import 'package:flutter/material.dart';
-import '../main.dart';
+import 'package:authen/screens/login_screen.dart'; // import màn login
 import '../models/reward.dart';
+
+// Import cả hai model
 import '../models/redemption_history_item.dart';
+import '../models/transaction_history_item.dart';
+
 import './reward_screen.dart';
 import './home_screen.dart';
 import './task_screen.dart';
-import './history_screen.dart';
+
+// Import cả hai màn hình lịch sử
+import './history_screen.dart'; // Màn hình đổi thưởng
+import './transaction_history_screen.dart'; // Màn hình giao dịch
+import './campaign_detail_screen.dart';
 import 'campaign_list_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -17,19 +26,16 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _selectedIndex = 0; // Index của tab đang được chọn
+  int _selectedIndex = 0;
 
-  // --- LIFTING STATE UP ---
-  // Toàn bộ trạng thái quan trọng của ứng dụng được chuyển từ RewardScreen lên đây
-  // để có thể chia sẻ và quản lý từ một nơi duy nhất.
   int _userCoins = 50;
   final List<Reward> _rewards = [
-    // ... (Giữ nguyên dữ liệu Reward của bạn)
     Reward(
       id: 'R1',
       name: 'Voucher Giảm 20% Highlands Coffee',
       description: 'Áp dụng cho tất cả các sản phẩm nước uống.',
-      content: 'Điều kiện áp dụng:\n- Áp dụng cho tất cả các sản phẩm nước uống tại hệ thống Highlands Coffee trên toàn quốc.\n- Voucher không có giá trị quy đổi thành tiền mặt.\n- Mỗi hóa đơn chỉ được áp dụng 1 voucher.\n- Hạn sử dụng: 30/09/2025.',
+      content:
+      'Điều kiện áp dụng:\n- Áp dụng cho tất cả các sản phẩm nước uống tại hệ thống Highlands Coffee trên toàn quốc.\n- Voucher không có giá trị quy đổi thành tiền mặt.\n- Mỗi hóa đơn chỉ được áp dụng 1 voucher.\n- Hạn sử dụng: 30/09/2025.',
       imageUrl: 'assets/images/hightland.png',
       cost: 5,
       quantity: 15,
@@ -40,7 +46,8 @@ class _MainScreenState extends State<MainScreen> {
       id: 'R2',
       name: 'Miễn Phí 1 Suất Bắp Rang Bơ CGV',
       description: 'Nhận ngay 1 phần bắp rang bơ miễn phí.',
-      content: 'Nhận ngay 1 phần bắp rang bơ vị mặn (lớn) miễn phí khi mua vé xem phim 2D tại tất cả các cụm rạp CGV Cinemas. Vui lòng xuất trình mã voucher này tại quầy bắp nước để nhận ưu đãi.',
+      content:
+      'Nhận ngay 1 phần bắp rang bơ vị mặn (lớn) miễn phí khi mua vé xem phim 2D tại tất cả các cụm rạp CGV Cinemas. Vui lòng xuất trình mã voucher này tại quầy bắp nước để nhận ưu đãi.',
       imageUrl: 'assets/images/cgv.png',
       cost: 3,
       quantity: 5,
@@ -51,7 +58,8 @@ class _MainScreenState extends State<MainScreen> {
       id: 'R3',
       name: 'Thẻ Quà Tặng 100.000đ Tiki',
       description: 'Sử dụng để mua sắm trên sàn Tiki.',
-      content: 'Sử dụng để mua sắm hàng ngàn sản phẩm trên sàn thương mại điện tử Tiki.vn. Không áp dụng cho các sản phẩm của nhà bán hàng quốc tế hoặc các dịch vụ tiện ích (thẻ cào, vé máy bay...).',
+      content:
+      'Sử dụng để mua sắm hàng ngàn sản phẩm trên sàn thương mại điện tử Tiki.vn. Không áp dụng cho các sản phẩm của nhà bán hàng quốc tế hoặc các dịch vụ tiện ích (thẻ cào, vé máy bay...).',
       imageUrl: 'assets/images/tiki.png',
       cost: 4,
       quantity: 10,
@@ -59,33 +67,53 @@ class _MainScreenState extends State<MainScreen> {
       timesRedeemedByUser: 1,
     ),
   ];
-  final List<RedemptionHistoryItem> _redemptionHistory = [];
 
-  // Hàm xử lý việc đổi quà, cũng được chuyển lên đây
+  // Khai báo 2 danh sách lịch sử riêng biệt
+  final List<RedemptionHistoryItem> _redemptionHistory = [];
+  final List<TransactionHistoryItem> _transactionHistory = [];
+
+  // Hàm đổi quà
   void _redeemReward(int originalIndex) {
     final reward = _rewards[originalIndex];
     if (_userCoins < reward.cost ||
         reward.quantity <= 0 ||
         reward.timesRedeemedByUser >= reward.redemptionLimit) {
-      // Hiển thị thông báo không thành công nếu cần
       return;
     }
     setState(() {
       _userCoins -= reward.cost;
       _rewards[originalIndex] = Reward(
-        id: reward.id, name: reward.name, description: reward.description, content: reward.content, imageUrl: reward.imageUrl, cost: reward.cost,
-        quantity: reward.quantity - 1, // Giảm số lượng
+        id: reward.id,
+        name: reward.name,
+        description: reward.description,
+        content: reward.content,
+        imageUrl: reward.imageUrl,
+        cost: reward.cost,
+        quantity: reward.quantity - 1,
         redemptionLimit: reward.redemptionLimit,
-        timesRedeemedByUser: reward.timesRedeemedByUser + 1, // Tăng số lần đã đổi
+        timesRedeemedByUser: reward.timesRedeemedByUser + 1,
       );
 
-      // Thêm vào lịch sử đổi thưởng
-      final historyItem = RedemptionHistoryItem(
-        rewardName: reward.name, rewardImageUrl: reward.imageUrl, cost: reward.cost, redemptionDate: DateTime.now(),
+      // 1. Ghi vào LỊCH SỬ ĐỔI THƯỞNG
+      final redemptionItem = RedemptionHistoryItem(
+        rewardName: reward.name,
+        rewardImageUrl: reward.imageUrl,
+        cost: reward.cost,
+        redemptionDate: DateTime.now(),
       );
-      _redemptionHistory.add(historyItem);
+      _redemptionHistory.add(redemptionItem);
+
+      // 2. Ghi vào LỊCH SỬ GIAO DỊCH
+      final transactionItem = TransactionHistoryItem(
+        title: 'Đổi thưởng: ${reward.name}',
+        amount: reward.cost,
+        type: TransactionType.spend,
+        date: DateTime.now(),
+      );
+      _transactionHistory.add(transactionItem);
     });
 
+    // === SỬA LỖI: THÊM LẠI NỘI DUNG CHO showDialog ===
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -101,15 +129,38 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  // Hàm điều hướng sang trang lịch sử, gọi từ Drawer
-  void _showHistory() {
-    Navigator.of(context).pop(); // Đóng Drawer trước khi điều hướng
+  // Hàm kiếm Xu
+  void _addCoins(int amount, String reason) {
+    setState(() {
+      _userCoins += amount;
+      final transaction = TransactionHistoryItem(
+        title: reason,
+        amount: amount,
+        type: TransactionType.earn,
+        date: DateTime.now(),
+      );
+      _transactionHistory.add(transaction);
+    });
+  }
+
+  // Tạo 2 hàm điều hướng riêng
+  void _showRedemptionHistory() {
+    Navigator.of(context).pop();
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => HistoryScreen(history: _redemptionHistory)),
+      MaterialPageRoute(
+          builder: (context) => HistoryScreen(history: _redemptionHistory)),
     );
   }
 
-  // Hàm chọn tab
+  void _showTransactionHistory() {
+    Navigator.of(context).pop();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+          builder: (context) => TransactionHistoryScreen(
+              transactions: _transactionHistory)),
+    );
+  }
+
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -118,8 +169,6 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Danh sách các màn hình tương ứng với các tab
-    // Truyền dữ liệu và hàm callback xuống cho RewardScreen
     final List<Widget> _widgetOptions = <Widget>[
       const HomeScreen(),
       RewardScreen(
@@ -136,14 +185,13 @@ class _MainScreenState extends State<MainScreen> {
       'Nhiệm Vụ',
     ];
 
-
     return Scaffold(
+      // === SỬA LỖI: Thêm nội dung đầy đủ cho AppBar ===
       appBar: AppBar(
         title: Text(_titles[_selectedIndex]),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
-          // Hiển thị số xu ở AppBar
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: Chip(
@@ -151,47 +199,49 @@ class _MainScreenState extends State<MainScreen> {
               avatar: const Icon(Icons.monetization_on, color: Colors.orange),
               label: Text(
                 '$_userCoins Xu',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue,),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
               ),
             ),
           )
         ],
       ),
-      // THÊM MỚI: Burger Menu (Drawer)
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             const DrawerHeader(
               decoration: BoxDecoration(color: Colors.blue),
-              child: Text(
-                'Cài đặt',
-                style: TextStyle(color: Colors.white, fontSize: 24),
-              ),
+              child: Text('Menu & Tiện ích',
+                  style: TextStyle(color: Colors.white, fontSize: 24)),
             ),
             ListTile(
-              leading: const Icon(Icons.history),
+              leading: const Icon(Icons.card_giftcard_outlined),
               title: const Text('Lịch Sử Đổi Thưởng'),
-              onTap: _showHistory, // Gọi hàm hiển thị lịch sử
+              onTap: _showRedemptionHistory,
+            ),
+            ListTile(
+              leading: const Icon(Icons.history_toggle_off),
+              title: const Text('Lịch Sử Giao Dịch Xu'),
+              onTap: _showTransactionHistory,
             ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('Đăng xuất'),
               onTap: () {
-                // Thêm logic đăng xuất và quay về trang đăng nhập tại đây
                 Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => const LoginPage()), // Quay về LoginPage
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
                 );
               },
             ),
           ],
         ),
       ),
-      body: Center(
-        child: _widgetOptions.elementAt(_selectedIndex),
-      ),
-      // THÊM MỚI: Bottom Navigation Bar
+      body: Center(child: _widgetOptions.elementAt(_selectedIndex)),
+      // === SỬA LỖI: Thêm nội dung đầy đủ cho BottomNavigationBar ===
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
