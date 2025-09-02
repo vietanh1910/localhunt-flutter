@@ -1,289 +1,164 @@
-// file: screens/reward_screen.dart
-import 'package:flutter/material.dart';
-import 'dart:math' as math; // Import thư viện math để sử dụng giá trị Pi
-import '../models/reward.dart';
-import './reward_detail_screen.dart';
+// File: lib/screens/reward_screen.dart
 
-class RewardScreen extends StatefulWidget {
+import 'package:flutter/material.dart';
+import '../models/voucher.dart';
+import 'reward_detail_screen.dart';
+
+class RewardScreen extends StatelessWidget {
+  final List<Voucher> vouchers;
   final int userCoins;
-  final List<Reward> rewards;
-  final Function(int) onRedeemReward;
+  final Function(Voucher) onRedeem;
+  final String token;
 
   const RewardScreen({
     Key? key,
+    required this.vouchers,
     required this.userCoins,
-    required this.rewards,
-    required this.onRedeemReward,
+    required this.onRedeem,
+    required this.token,
   }) : super(key: key);
 
   @override
-  _RewardScreenState createState() => _RewardScreenState();
-}
-
-class _RewardScreenState extends State<RewardScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _shakeAnimation;
-  late Animation<Color?> _colorAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 700),
-      vsync: this,
-    )..repeat(reverse: true);
-
-    _shakeAnimation = Tween<double>(begin: -0.02, end: 0.02)
-        .animate(_animationController);
-
-    _colorAnimation = ColorTween(
-      begin: Colors.deepOrangeAccent,
-      end: Colors.amber,
-    ).animate(_animationController);
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  void _showDetail(BuildContext context, Reward reward, int originalIndex) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => RewardDetailScreen(
-          reward: reward,
-          userCoins: widget.userCoins,
-          onRedeem: () {
-            widget.onRedeemReward(originalIndex);
-            if (Navigator.canPop(context)) {
-              Navigator.of(context).pop();
-            }
-          },
-        ),
-      ),
-    );
-  }
-
-  void _showTutorialDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.help_outline, color: Colors.blue),
-            const SizedBox(width: 8),
-            // ĐÃ SỬA LỖI: Bọc Text bằng Expanded để tự động co giãn, không bị tràn
-            const Expanded(
-              child: Text(
-                'Hướng Dẫn Đổi Thưởng',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: ListBody(
-            children: <Widget>[
-              _buildTutorialStep(
-                  '1.', 'Kiểm tra số Xu bạn đang có ở thanh trên cùng.'),
-              _buildTutorialStep('2.',
-                  'Mỗi phần thưởng sẽ hiển thị số Xu cần thiết để đổi.'),
-              _buildTutorialStep(
-                  '3.', 'Nếu đủ Xu, nhấn nút "Đổi" để nhận quà ngay lập tức!'),
-              _buildTutorialStep('4.',
-                  'Nhấn "Chi Tiết" để xem thêm các điều kiện áp dụng của phần thưởng.'),
-            ],
-          ),
-        ),
-        actions: <Widget>[
-          TextButton(
-            child: const Text('Đã Hiểu',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-            },
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTutorialStep(String number, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(number,
-              style:
-              const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(height: 1.5))),
-        ],
-      ),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final List<Reward> availableRewards = widget.rewards.where((reward) {
-      return reward.quantity > 0 &&
-          reward.timesRedeemedByUser < reward.redemptionLimit;
-    }).toList();
+    if (vouchers.isEmpty) {
+      return const Center(child: Text("Không có voucher nào khả dụng hoặc đã đổi hết."));
+    }
 
-    return Stack(
-      children: [
-        availableRewards.isEmpty
-            ? const Center(
-          child: Text(
-            'Hiện không có phần thưởng nào khả dụng.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18, color: Colors.grey),
-          ),
-        )
-            : ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 80.0),
-          itemCount: availableRewards.length,
-          itemBuilder: (context, index) {
-            final reward = availableRewards[index];
-            final originalIndex = widget.rewards.indexOf(reward);
-            final bool canAfford = widget.userCoins >= reward.cost;
-
-            return Card(
-              elevation: 4.0,
-              margin: const EdgeInsets.only(bottom: 16.0),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.0)),
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8.0),
-                          child: Image.asset(
-                            reward.imageUrl,
-                            width: 100,
-                            height: 100,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                width: 100,
-                                height: 100,
-                                color: Colors.grey.shade200,
-                                child: const Icon(Icons.card_giftcard,
-                                    size: 50, color: Colors.grey),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 16.0),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                reward.name,
-                                style: const TextStyle(
-                                  fontSize: 18.0,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 8.0),
-                              Text(
-                                reward.description,
-                                style: TextStyle(
-                                    fontSize: 14.0,
-                                    color: Colors.grey.shade700),
-                              ),
-                              const SizedBox(height: 8.0),
-                              Text(
-                                'Đã đổi: ${reward.timesRedeemedByUser}/${reward.redemptionLimit} | Còn lại: ${reward.quantity}',
-                                style: TextStyle(
-                                  fontSize: 13.0,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.green.shade800,
-                                ),
-                              )
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24.0),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Chip(
-                          avatar: Icon(Icons.monetization_on,
-                              color:
-                              canAfford ? Colors.orange : Colors.grey),
-                          label: Text('${reward.cost} Xu',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold)),
-                          backgroundColor: canAfford
-                              ? Colors.orange.shade50
-                              : Colors.grey.shade300,
-                        ),
-                        Row(
-                          children: [
-                            OutlinedButton(
-                              onPressed: () =>
-                                  _showDetail(context, reward, originalIndex),
-                              child: const Text('Chi Tiết'),
-                            ),
-                            const SizedBox(width: 8.0),
-                            ElevatedButton(
-                              onPressed: canAfford
-                                  ? () =>
-                                  widget.onRedeemReward(originalIndex)
-                                  : null,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                              ),
-                              child: const Text('Đổi'),
-                            ),
-                          ],
-                        )
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-        Positioned(
-          top: 16,
-          right: 16,
-          child: AnimatedBuilder(
-            animation: _animationController,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: _shakeAnimation.value * math.pi,
-                child: FloatingActionButton(
-                  mini: true,
-                  tooltip: 'Hướng dẫn đổi thưởng',
-                  onPressed: () {
-                    _showTutorialDialog(context);
-                  },
-                  backgroundColor: _colorAnimation.value,
-                  child:
-                  const Icon(Icons.question_mark, color: Colors.white, size: 24),
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      body: ListView.builder(
+        padding: const EdgeInsets.only(top: 8, bottom: 8),
+        itemCount: vouchers.length,
+        itemBuilder: (context, index) {
+          final voucher = vouchers[index];
+          return _VoucherCard(
+            voucher: voucher,
+            userCoins: userCoins,
+            onRedeem: onRedeem,
+            onViewDetail: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  // Sửa ở đây để gọi đúng VoucherDetailScreen
+                  builder: (_) => RewardDetailScreen(
+                    voucher: voucher,
+                    userCoins: userCoins,
+                    onRedeem: onRedeem,
+                  ),
                 ),
               );
             },
-          ),
+          );
+        },
+      ),
+    );
+  }
+}
+class _VoucherCard extends StatelessWidget {
+  final Voucher voucher;
+  final int userCoins;
+  final Function(Voucher) onRedeem;
+  final VoidCallback onViewDetail;
+
+  const _VoucherCard({
+    required this.voucher,
+    required this.userCoins,
+    required this.onRedeem,
+    required this.onViewDetail,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Logic kiểm tra có thể đổi hay không
+    final bool canRedeem = userCoins >= voucher.cost && (voucher.quantity == 0 || voucher.claimed < voucher.quantity);
+    final bool hasImage = voucher.imageUrl.isNotEmpty;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8.0),
+                  child: hasImage
+                      ? Image.network(
+                    voucher.imageUrl,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _buildImagePlaceholder(),
+                  )
+                      : _buildImagePlaceholder(),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(voucher.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 4),
+                      Text(voucher.description, style: TextStyle(color: Colors.grey[600], fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 8),
+                      // === BỎ DÒNG "ĐÃ ĐỔI" VÀ THAY BẰNG SỐ LƯỢNG CÒN LẠI ===
+                      Text(
+                          'Số lượng còn: ${voucher.quantity - voucher.claimed}',
+                          style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w500)
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Chip(
+                  backgroundColor: Colors.orange.withOpacity(0.1),
+                  avatar: const Icon(Icons.monetization_on, color: Colors.orange, size: 18),
+                  label: Text(
+                    '${voucher.cost} Xu',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+                  ),
+                ),
+                Row(
+                  children: [
+                    OutlinedButton(
+                      onPressed: onViewDetail,
+                      child: const Text('Chi Tiết'),
+                      style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: canRedeem ? () => onRedeem(voucher) : null,
+                      child: const Text('Đổi'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canRedeem ? Colors.blue : Colors.grey,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      ),
+                    ),
+                  ],
+                )
+              ],
+            ),
+          ],
         ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildImagePlaceholder() {
+    return Container(
+      width: 80,
+      height: 80,
+      color: Colors.grey.withOpacity(0.1),
+      child: Icon(Icons.local_offer, size: 40, color: Colors.grey[400]),
     );
   }
 }

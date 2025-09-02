@@ -11,6 +11,7 @@ class TransactionHistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Sắp xếp các giao dịch theo thứ tự mới nhất lên đầu
     final sortedTransactions = List<TransactionHistoryItem>.from(transactions)
       ..sort((a, b) => b.date.compareTo(a.date));
 
@@ -36,6 +37,7 @@ class TransactionHistoryScreen extends StatelessWidget {
             margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
             child: ListTile(
               leading: CircleAvatar(
+                // Dùng getter `color` và `icon` từ model
                 backgroundColor: item.color.withOpacity(0.15),
                 child: Icon(item.icon, color: item.color),
               ),
@@ -47,6 +49,7 @@ class TransactionHistoryScreen extends StatelessWidget {
                 DateFormat('HH:mm, dd/MM/yyyy').format(item.date),
               ),
               trailing: Text(
+                // Dùng getter `amountString` từ model
                 item.amountString,
                 style: TextStyle(
                   color: item.color,
