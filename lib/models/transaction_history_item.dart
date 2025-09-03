@@ -1,26 +1,28 @@
-// file: models/transaction_history_item.dart
-
+// File: lib/models/transaction_history_item.dart
 import 'package:flutter/material.dart';
-
-enum TransactionType {
-  earn,
-  spend,
-}
 
 class TransactionHistoryItem {
   final String title;
-  final int amount;
-  final TransactionType type;
   final DateTime date;
+  final int amount; // Dùng int để tính toán, sau đó định dạng thành string
 
   TransactionHistoryItem({
     required this.title,
-    required this.amount,
-    required this.type,
     required this.date,
+    required this.amount,
   });
 
-  Color get color => type == TransactionType.earn ? Colors.green : Colors.red;
-  IconData get icon => type == TransactionType.earn ? Icons.arrow_upward : Icons.arrow_downward;
-  String get amountString => type == TransactionType.earn ? '+${amount} Xu' : '-${amount} Xu';
+  // Getter để định dạng chuỗi hiển thị
+  String get amountString {
+    return amount > 0 ? '+ $amount Xu' : '- ${amount.abs()} Xu';
+  }
+
+  // Getter để quyết định màu sắc
+  Color get color {
+    return amount >= 0 ? Colors.green : Colors.red;
+  }
+  // Getter để quyết định icon
+  IconData get icon {
+    return amount >= 0 ? Icons.add_card : Icons.shopping_cart_checkout;
+  }
 }

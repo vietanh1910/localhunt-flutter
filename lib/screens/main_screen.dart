@@ -1,25 +1,29 @@
-// file: screens/main_screen.dart
+// File: lib/screens/main_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:authen/screens/login_screen.dart'; // import màn login
-import '../models/reward.dart';
 
-// Import cả hai model
-import '../models/redemption_history_item.dart';
+// Import các models cần thiết
+import '../models/user.dart';
+import '../models/voucher.dart';
 import '../models/transaction_history_item.dart';
 
-import './reward_screen.dart';
-import './home_screen.dart';
-import './task_screen.dart';
+// Import các services
+import '../services/api_service.dart';
+import '../services/auth_api.dart'; // Giữ lại nếu bạn có hàm logout ở đây
 
-// Import cả hai màn hình lịch sử
-import './history_screen.dart'; // Màn hình đổi thưởng
-import './transaction_history_screen.dart'; // Màn hình giao dịch
-import './campaign_detail_screen.dart';
+// Import các màn hình
+import 'login_screen.dart';
+import 'reward_screen.dart';
+import 'home_screen.dart';
+import 'history_screen.dart';
+import 'transaction_history_screen.dart';
 import 'campaign_list_screen.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({Key? key}) : super(key: key);
+  final String loginToken;
+  final User user;
+
+  const MainScreen({Key? key, required this.loginToken, required this.user}) : super(key: key);
 
   @override
   _MainScreenState createState() => _MainScreenState();
@@ -27,168 +31,123 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
+  late User _currentUser;
+  late int _userCoins;
 
-  int _userCoins = 50;
-  final List<Reward> _rewards = [
-    Reward(
-      id: 'R1',
-      name: 'Voucher Giảm 20% Highlands Coffee',
-      description: 'Áp dụng cho tất cả các sản phẩm nước uống.',
-      content:
-      'Điều kiện áp dụng:\n- Áp dụng cho tất cả các sản phẩm nước uống tại hệ thống Highlands Coffee trên toàn quốc.\n- Voucher không có giá trị quy đổi thành tiền mặt.\n- Mỗi hóa đơn chỉ được áp dụng 1 voucher.\n- Hạn sử dụng: 30/09/2025.',
-      imageUrl: 'assets/images/hightland.png',
-      cost: 5,
-      quantity: 15,
-      redemptionLimit: 1,
-      timesRedeemedByUser: 0,
-    ),
-    Reward(
-      id: 'R2',
-      name: 'Miễn Phí 1 Suất Bắp Rang Bơ CGV',
-      description: 'Nhận ngay 1 phần bắp rang bơ miễn phí.',
-      content:
-      'Nhận ngay 1 phần bắp rang bơ vị mặn (lớn) miễn phí khi mua vé xem phim 2D tại tất cả các cụm rạp CGV Cinemas. Vui lòng xuất trình mã voucher này tại quầy bắp nước để nhận ưu đãi.',
-      imageUrl: 'assets/images/cgv.png',
-      cost: 3,
-      quantity: 5,
-      redemptionLimit: 2,
-      timesRedeemedByUser: 1,
-    ),
-    Reward(
-      id: 'R3',
-      name: 'Thẻ Quà Tặng 100.000đ Tiki',
-      description: 'Sử dụng để mua sắm trên sàn Tiki.',
-      content:
-      'Sử dụng để mua sắm hàng ngàn sản phẩm trên sàn thương mại điện tử Tiki.vn. Không áp dụng cho các sản phẩm của nhà bán hàng quốc tế hoặc các dịch vụ tiện ích (thẻ cào, vé máy bay...).',
-      imageUrl: 'assets/images/tiki.png',
-      cost: 4,
-      quantity: 10,
-      redemptionLimit: 1,
-      timesRedeemedByUser: 1,
-    ),
-  ];
+  late final ApiService _apiService;
 
-  // Khai báo 2 danh sách lịch sử riêng biệt
-  final List<RedemptionHistoryItem> _redemptionHistory = [];
+  // State quản lý danh sách voucher có thể đổi
+  late Future<List<Voucher>> _vouchersFuture;
+  List<Voucher> _vouchers = [];
+
+  // State quản lý lịch sử giao dịch (ví dụ tạm thời ở client)
   final List<TransactionHistoryItem> _transactionHistory = [];
 
-  // Hàm đổi quà
-  void _redeemReward(int originalIndex) {
-    final reward = _rewards[originalIndex];
-    if (_userCoins < reward.cost ||
-        reward.quantity <= 0 ||
-        reward.timesRedeemedByUser >= reward.redemptionLimit) {
-      return;
-    }
-    setState(() {
-      _userCoins -= reward.cost;
-      _rewards[originalIndex] = Reward(
-        id: reward.id,
-        name: reward.name,
-        description: reward.description,
-        content: reward.content,
-        imageUrl: reward.imageUrl,
-        cost: reward.cost,
-        quantity: reward.quantity - 1,
-        redemptionLimit: reward.redemptionLimit,
-        timesRedeemedByUser: reward.timesRedeemedByUser + 1,
-      );
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = widget.user;
+    _userCoins = _currentUser.points;
 
-      // 1. Ghi vào LỊCH SỬ ĐỔI THƯỞNG
-      final redemptionItem = RedemptionHistoryItem(
-        rewardName: reward.name,
-        rewardImageUrl: reward.imageUrl,
-        cost: reward.cost,
-        redemptionDate: DateTime.now(),
-      );
-      _redemptionHistory.add(redemptionItem);
+    // Khởi tạo ApiService và truyền token xác thực vào
+    _apiService = ApiService();
+    _apiService.setAuthToken(widget.loginToken);
 
-      // 2. Ghi vào LỊCH SỬ GIAO DỊCH
-      final transactionItem = TransactionHistoryItem(
-        title: 'Đổi thưởng: ${reward.name}',
-        amount: reward.cost,
-        type: TransactionType.spend,
-        date: DateTime.now(),
-      );
-      _transactionHistory.add(transactionItem);
+    // Bắt đầu tải danh sách voucher có thể đổi
+    _fetchAvailableVouchers();
+  }
+
+  // Tải danh sách các voucher mà người dùng CHƯA đổi từ backend
+  void _fetchAvailableVouchers() {
+    // Gán Future vào state để FutureBuilder có thể theo dõi
+    _vouchersFuture = _apiService.getAvailableVouchers();
+
+    // Xử lý kết quả khi Future hoàn thành
+    _vouchersFuture.then((fetchedVouchers) {
+      if (mounted) {
+        setState(() => _vouchers = fetchedVouchers);
+      }
+    }).catchError((error) {
+      // Hiển thị lỗi cho người dùng nếu không tải được voucher
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error.toString().replaceFirst("Exception: ", "")), backgroundColor: Colors.red)
+        );
+      }
     });
+  }
 
-    // === SỬA LỖI: THÊM LẠI NỘI DUNG CHO showDialog ===
+  // Xử lý logic khi người dùng bấm nút "Đổi" trên RewardScreen
+  Future<void> _redeemVoucher(Voucher voucherToRedeem) async {
     showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Đổi Quà Thành Công!'),
-        content: Text('Bạn đã đổi thành công "${reward.name}".'),
-        actions: <Widget>[
-          TextButton(
-            child: const Text('Tuyệt vời'),
-            onPressed: () => Navigator.of(ctx).pop(),
-          )
-        ],
-      ),
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const Center(child: CircularProgressIndicator())
     );
+
+    try {
+      await _apiService.redeemVoucher(voucherId: voucherToRedeem.id);
+
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop(); // Tắt dialog loading
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Đổi voucher '${voucherToRedeem.name}' thành công!"), backgroundColor: Colors.green)
+        );
+
+        // Cập nhật state cục bộ (số xu, lịch sử giao dịch)
+        setState(() {
+          _userCoins -= voucherToRedeem.cost;
+          _transactionHistory.insert(0, TransactionHistoryItem(
+            title: "Đổi voucher: ${voucherToRedeem.name}",
+            date: DateTime.now(),
+            amount: -voucherToRedeem.cost,
+          ));
+        });
+
+        // Quan trọng: Tải lại danh sách voucher để voucher vừa đổi biến mất
+        _fetchAvailableVouchers();
+      }
+    } catch (error) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop(); // Tắt dialog loading
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error.toString().replaceFirst("Exception: ", "")), backgroundColor: Colors.red)
+        );
+      }
+    }
   }
 
-  // Hàm kiếm Xu
-  void _addCoins(int amount, String reason) {
-    setState(() {
-      _userCoins += amount;
-      final transaction = TransactionHistoryItem(
-        title: reason,
-        amount: amount,
-        type: TransactionType.earn,
-        date: DateTime.now(),
+  // Xử lý đăng xuất
+  Future<void> _logout() async {
+    // TODO: Gọi hàm xóa token từ AuthApi hoặc storage
+    // Ví dụ: await AuthApi.logout();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+            (Route<dynamic> route) => false,
       );
-      _transactionHistory.add(transaction);
-    });
+    }
   }
 
-  // Tạo 2 hàm điều hướng riêng
-  void _showRedemptionHistory() {
-    Navigator.of(context).pop();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-          builder: (context) => HistoryScreen(history: _redemptionHistory)),
-    );
-  }
-
-  void _showTransactionHistory() {
-    Navigator.of(context).pop();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-          builder: (context) => TransactionHistoryScreen(
-              transactions: _transactionHistory)),
-    );
-  }
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
+  void _onItemTapped(int index) => setState(() => _selectedIndex = index);
+  void _navigateToScreen(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> _widgetOptions = <Widget>[
+    final List<Widget> widgetOptions = <Widget>[
       const HomeScreen(),
       RewardScreen(
+        vouchers: _vouchers,
         userCoins: _userCoins,
-        rewards: _rewards,
-        onRedeemReward: _redeemReward, // Truyền hàm xử lý xuống
+        onRedeem: _redeemVoucher,
+        token: widget.loginToken,
       ),
       const CampaignListScreen(),
     ];
 
-    const List<String> _titles = <String> [
-      'Trang Chủ',
-      'Ví Thưởng Của Bạn',
-      'Nhiệm Vụ',
-    ];
-
     return Scaffold(
-      // === SỬA LỖI: Thêm nội dung đầy đủ cho AppBar ===
       appBar: AppBar(
-        title: Text(_titles[_selectedIndex]),
+        title: Text(['Trang Chủ', 'Ví Thưởng', 'Nhiệm vụ'][_selectedIndex]),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
@@ -197,13 +156,7 @@ class _MainScreenState extends State<MainScreen> {
             child: Chip(
               backgroundColor: Colors.white,
               avatar: const Icon(Icons.monetization_on, color: Colors.orange),
-              label: Text(
-                '$_userCoins Xu',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
-              ),
+              label: Text('$_userCoins Xu', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
             ),
           )
         ],
@@ -212,53 +165,80 @@ class _MainScreenState extends State<MainScreen> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blue),
-              child: Text('Menu & Tiện ích',
-                  style: TextStyle(color: Colors.white, fontSize: 24)),
+            UserAccountsDrawerHeader(
+              accountName: Text(_currentUser.fullName),
+              accountEmail: Text(_currentUser.email),
+              currentAccountPicture: CircleAvatar(
+                child: Text(_currentUser.fullName.isNotEmpty ? _currentUser.fullName[0].toUpperCase() : 'U'),
+              ),
+              decoration: const BoxDecoration(color: Colors.blue),
             ),
             ListTile(
-              leading: const Icon(Icons.card_giftcard_outlined),
-              title: const Text('Lịch Sử Đổi Thưởng'),
-              onTap: _showRedemptionHistory,
+                leading: const Icon(Icons.card_giftcard_outlined),
+                title: const Text('Voucher Của Tôi'),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Điều hướng đến HistoryScreen, truyền ApiService và UserId
+                  _navigateToScreen(HistoryScreen(
+                    apiService: _apiService,
+                    currentUserId: _currentUser.id,
+                  ));
+                }
             ),
             ListTile(
-              leading: const Icon(Icons.history_toggle_off),
-              title: const Text('Lịch Sử Giao Dịch Xu'),
-              onTap: _showTransactionHistory,
+                leading: const Icon(Icons.history_toggle_off),
+                title: const Text('Lịch Sử Giao Dịch Xu'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _navigateToScreen(TransactionHistoryScreen(transactions: _transactionHistory));
+                }
             ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('Đăng xuất'),
-              onTap: () {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                );
-              },
+              onTap: _logout,
             ),
           ],
         ),
       ),
-      body: Center(child: _widgetOptions.elementAt(_selectedIndex)),
-      // === SỬA LỖI: Thêm nội dung đầy đủ cho BottomNavigationBar ===
+      body: FutureBuilder<List<Voucher>>(
+        future: _vouchersFuture,
+        builder: (context, snapshot) {
+          // Hiển thị loading chỉ khi đang tải lần đầu và chưa có dữ liệu
+          if (snapshot.connectionState == ConnectionState.waiting && _vouchers.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          // Hiển thị lỗi chỉ khi tải lần đầu thất bại
+          if (snapshot.hasError && _vouchers.isEmpty) {
+            return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Text(
+                        snapshot.error.toString().replaceFirst("Exception: ", ""),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(onPressed: _fetchAvailableVouchers, child: const Text("Thử lại"))
+                  ],
+                )
+            );
+          }
+          // Luôn hiển thị UI chính, dữ liệu sẽ được cập nhật một cách mượt mà
+          return IndexedStack(index: _selectedIndex, children: widgetOptions);
+        },
+      ),
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.card_giftcard),
-            label: 'Đổi thưởng',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.task_alt),
-            label: 'Nhiệm vụ',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.card_giftcard), label: 'Đổi thưởng'),
+          BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Nhiệm vụ'),
         ],
         currentIndex: _selectedIndex,
-        selectedItemColor: Colors.blue,
         onTap: _onItemTapped,
       ),
     );
