@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart'; // Bỏ các import không dùng ở đây
+import 'screens/splash_screen.dart'; // Import splash screen
 import 'screens/login_screen.dart'; // Import màn hình login
 
 // Hàm main() là điểm khởi đầu của ứng dụng
@@ -25,11 +26,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Hunter Point', // Đổi tên app của bạn
+      title: 'Local Hunt', // Đổi tên app từ Hunter Point thành Local Hunt
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         // Đây là nơi bạn định nghĩa theme chung cho toàn bộ ứng dụng
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.purple, // Đổi thành purple để match với splash screen
         scaffoldBackgroundColor: Colors.white,
         fontFamily: 'Roboto', // Đảm bảo bạn đã thêm font này vào pubspec.yaml
         inputDecorationTheme: InputDecorationTheme(
@@ -55,8 +56,36 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      // Màn hình đầu tiên mà người dùng nhìn thấy khi mở app
-      home: const LoginPage(),
+      // Bắt đầu với splash screen thay vì login page
+      home: const AppWrapper(),
     );
+  }
+}
+
+// Widget wrapper để quản lý việc chuyển đổi giữa splash screen và main app
+class AppWrapper extends StatefulWidget {
+  const AppWrapper({Key? key}) : super(key: key);
+
+  @override
+  State<AppWrapper> createState() => _AppWrapperState();
+}
+
+class _AppWrapperState extends State<AppWrapper> {
+  bool _showSplash = true;
+
+  void _onSplashFinished() {
+    setState(() {
+      _showSplash = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showSplash) {
+      return SplashScreen(onFinished: _onSplashFinished);
+    }
+    
+    // Sau khi splash screen kết thúc, chuyển đến login page
+    return const LoginPage();
   }
 }
