@@ -123,7 +123,8 @@ class _MainScreenState extends State<MainScreen> {
     // Ví dụ: await AuthApi.logout();
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginPage()),
+        // SỬA TẠI ĐÂY: Đổi LoginPage thành LoginScreen
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
             (Route<dynamic> route) => false,
       );
     }
